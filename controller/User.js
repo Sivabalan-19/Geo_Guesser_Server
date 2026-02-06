@@ -1,3 +1,5 @@
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 const getUsers = async (req, res) => {
@@ -11,10 +13,28 @@ const getUsers = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const user = await User.find(req.body);
-    if (user.length > 0) {
-      res.status(200).json({ success: true, data: user[0] });
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
     }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
+    }
+
+    const secret = process.env.JWT_SECRET || "dev_secret";
+    const token = jwt.sign({ userId: user._id, email: user.email }, secret, {
+      expiresIn: "1d",
+    });
+
+    // Avoid sending password back
+    const { password: _, ...safeUser } = user.toObject();
+    res.status(200).json({ success: true, data: safeUser, token });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -22,9 +42,12 @@ const login = async (req, res) => {
 
 const addUser = async (req, res) => {
   try {
-    await User.create(req.body);
+    const { username, email, password } = req.body;
+    const hashed = await bcrypt.hash(password, 10);
+    await User.create({ username, email, password: hashed });
     res.status(201).json({ success: true, message: "User added successfully" });
   } catch (error) {
+    console.log(error);
     if (error && error.code === 11000) {
       return res
         .status(409)
