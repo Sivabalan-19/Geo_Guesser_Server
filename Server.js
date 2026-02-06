@@ -1,6 +1,15 @@
 const express = require("express");
-const app = express();
 require("dotenv").config();
-require("./config/db");
+const connectDB = require("./config/db");
+
+const app = express();
+
+connectDB();
+
 app.use(express.json());
-app.listen(5000, () => console.log("Server running on port 5000"));
+
+app.use("/users", require("./routes/User"));
+
+app.listen(5000, () => {
+  console.log("Server running on port 5000");
+});
